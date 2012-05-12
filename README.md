@@ -10,4 +10,6 @@ all relevant information.
 Because it is often much more convenient to enter comments and grades in a text file locally, I created several scripts that assist 
 in the conversian between individual comment files and the Scholar directory format.
 
+In addition, there are tools to facilitate translating group feedback into individual feedback for posting to Scholar
+
 still a work in progress :-)
