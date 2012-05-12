@@ -85,8 +85,6 @@ class StudentData:
             f.write(header)
             writer.writerows(self.grades)
 
-#print "Grade for %r is %f" % (record, grade)
-            
 
 if __name__ == "__main__":
     from sys import argv,stdin
