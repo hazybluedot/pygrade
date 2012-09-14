@@ -70,4 +70,4 @@ if __name__ == '__main__':
         (pid,url,project_directory) = shlex.split(line)
         repopath = sync_repo(pid,url)
         project_directory = os.path.join(repopath,project_directory)
-        print project_directory
+        print "{} \"{}\"".format(pid,os.path.realpath(project_directory))
