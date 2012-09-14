@@ -3,16 +3,13 @@
 import argparse
 from sys import argv,stdout,stderr,stdin,exit
 import os
-from github import *
 import subprocess
+import shlex
+from github import Github #easy_install PyGitHub
+from git import * # aur/gitpython on Arch
 
-parser = argparse.ArgumentParser(description='Checkout/pull a list of git repositories from github.')
-parser.add_argument('csvfile', nargs='?', type=argparse.FileType('r'),default=stdin,
-                   help='filename of a comma deliminated file containing a list of usernames')
+github = Github()
 
-
-args = parser.parse_args()
-print args
 def create_dir(dirname):
     if not os.path.exists(dirname):
         try:
@@ -23,38 +20,54 @@ def create_dir(dirname):
     else:
         return True
 
-if args.csvfile:
-    import csv
-    gitusersFile = csv.reader(args.csvfile)
-    gitusers = []
-    for row in gitusersFile:
-        if not row[-1]=="":
-            gitusers.append(row[-1])
-
-for address in stdin:
-    
-gh = github.GitHub()
-
-def sync_repo(username, reponame):
+def sync_repo(username, url):
     userpath = os.path.join(os.path.curdir,username)
     create_dir(userpath)
 
-    reponame = 'ece2524'
-    repo = None
+    values = url.split('/')
+    username = values[3]
     try:
-        repo = gh.repos.show(username, reponame)
-    except:
-        stderr.write("No repo %s for %s\n" % (reponame,username))
-        next
+        (reponame,dot,ext) = values[4].partition('.')
+    except IndexError:
+        reponame = 'ECE2524'
 
-    if repo:
-        url = repo.url
-        repopath = os.path.join(userpath, repo.name)
-        if os.path.exists(os.path.join(repopath,'.git')):
-            action = 'pull'
-        else:
-            action = 'clone'
+    repo = github.get_user(username).get_repo(reponame)
+    url = repo.clone_url
+    repopath = os.path.join(userpath, reponame)
 
-        command = "cd %s; git %s %s" % (repopath,action,url)
-        print command
-        subprocess.call(command, shell=True)
+    if not os.path.exists(repopath):
+        create_dir(repopath)
+        action = 'clone'
+    else:
+        action = 'pull'
+
+    repo = Repo(repopath)
+
+    if action == 'clone':
+        repo.clone_from(url,repopath)
+    else:
+        remote = repo.remote(name='origin')
+        try:
+            remote.pull()
+        except AssertionError as e:
+            stderr.write("Error on {}:\n\t{}\n".format(username,e))
+
+    #command = "cd {}; git {} {}".format(repopath,action,url)
+    #print command
+    #subprocess.call(command, shell=True)
+    return repopath
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser(description='Checkout/pull a list of git repositories from github.')
+    #parser.add_argument('csvfile', nargs='?', type=argparse.FileType('r'),default=stdin,
+     #                  help='filename of a comma delimited file containing a list of usernames')
+
+
+    args = parser.parse_args()
+    
+    for line in stdin:
+        (pid,url,project_directory) = shlex.split(line)
+        repopath = sync_repo(pid,url)
+        project_directory = os.path.join(repopath,project_directory)
+        print project_directory
