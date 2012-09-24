@@ -20,7 +20,11 @@ def create_dir(dirname):
     else:
         return True
 
-def sync_repo(username, url):
+def sync_repo(username, url, **kwargs):
+    pretend = False
+    if 'pretend' in kwargs:
+        pretend = True
+
     userpath = os.path.join(os.path.curdir,username)
     create_dir(userpath)
 
@@ -43,15 +47,16 @@ def sync_repo(username, url):
 
     repo = Repo(repopath)
 
-    if action == 'clone':
-        repo.clone_from(url,repopath)
-    else:
-        remote = repo.remote(name='origin')
-        try:
-            remote.pull()
-        except AssertionError as e:
-            stderr.write("Error on {}:\n\t{}\n".format(username,e))
-
+    if not pretend:
+        if action == 'clone':
+            repo.clone_from(url,repopath)
+        else:
+            remote = repo.remote(name='origin')
+            try:
+                remote.pull()
+            except AssertionError as e:
+                stderr.write("Error on {}:\n\t{}\n".format(username,e))
+            
     #command = "cd {}; git {} {}".format(repopath,action,url)
     #print command
     #subprocess.call(command, shell=True)
@@ -62,12 +67,12 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Checkout/pull a list of git repositories from github.')
     #parser.add_argument('csvfile', nargs='?', type=argparse.FileType('r'),default=stdin,
      #                  help='filename of a comma delimited file containing a list of usernames')
-
+    parser.add_argument("-p","--pretend", action="store_true", help="Do everything except pull/clone repositories")
 
     args = parser.parse_args()
     
     for line in stdin:
         (pid,url,project_directory) = shlex.split(line)
-        repopath = sync_repo(pid,url)
+        repopath = sync_repo(pid,url,pretend=args.pretend)
         project_directory = os.path.join(repopath,project_directory)
         print "{} \"{}\"".format(pid,os.path.realpath(project_directory))

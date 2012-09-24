@@ -8,7 +8,7 @@ from sys import stderr
 def extract_grade(data):
     grade = None
     for line in data:
-        m = re.findall(r'\[([\d]+)\].*', line)
+        m = re.findall(r'\s+\[([\d]+)\].*', line)
         if m:
             grade = m[0]
     return grade
