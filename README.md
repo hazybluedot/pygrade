@@ -18,6 +18,7 @@ Current Workflow
 ----------------
 Of course this could all be packaged up into a convenient bash script
 Note: During this process submitted code is run using Python's subprocess module.  This should be run as an safe user, 
+
 1. Generate list of URLs submitted via Scholar
     
         find "$SCHOLAR_UNZIPED_ARCHIVE" '*submissionText.html' | extract_pid.py | extract_url.py > pid_urls.out
