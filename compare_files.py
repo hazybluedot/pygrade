@@ -79,7 +79,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Compare a list of files to reference files')
     
     parser.add_argument("files", metavar='FILE', nargs="*", help="File name to read paths to source files from")
-    parser.add_argument("--ref", type=argparse.FileType('r'), help="Path to reference file (.test)")
+    parser.add_argument("--ref", type=argparse.FileType('r'), nargs='+', help="Path to reference file (.test)")
     parser.add_argument("--verbose","-v", action="store_true", help="Be verbose")
 
     args = parser.parse_args()
@@ -87,7 +87,8 @@ if __name__ == '__main__':
     ref_test = {}
 
     try:
-        ref_test[args.ref.name] = ast.literal_eval(args.ref.read())
+        for ref in args.ref:
+            ref_test[ref.name] = ast.literal_eval(ref.read())
     except SyntaxError as e:
         sys.stderr.write("Could not parse reference file {}\n".format(ref_file.name))
         sys.exit(1)
@@ -96,6 +97,8 @@ if __name__ == '__main__':
 
     #for (pid,path) in map(shlex.split, fileinput.input(args.files)):
     for path in imap(str.strip, fileinput.input(args.files)):
+        if os.path.isfile(path):
+            (path,filename) = os.path.split(path)
         for test in ref_test:
             (basedir,filename) = os.path.split(path)
             if filename == ref_test[test]['path']:
