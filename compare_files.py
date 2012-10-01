@@ -7,6 +7,7 @@ import shlex
 import ast
 import subprocess_test as spt
 import pprint 
+from itertools import imap
 
 def do_refs(ref_test, do):
     for test in ref_test:
@@ -94,7 +95,7 @@ if __name__ == '__main__':
     open_refs(ref_test)
 
     #for (pid,path) in map(shlex.split, fileinput.input(args.files)):
-    for path in map(str.strip, fileinput.input(args.files)):
+    for path in imap(str.strip, fileinput.input(args.files)):
         for test in ref_test:
             (basedir,filename) = os.path.split(path)
             if filename == ref_test[test]['path']:

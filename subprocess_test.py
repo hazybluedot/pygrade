@@ -8,6 +8,14 @@ import fileinput
 import pickle
 import pprint
 import copy
+import tempfile
+import signal
+
+class Alarm(Exception):
+    pass
+
+def alarm_handler(signum, frame):
+    raise Alarm
 
 def output_file_names(t, trial_num, output_path, **kwargs):
     verbose = False
@@ -32,6 +40,7 @@ def run_tests(ref, **kwargs):
     t = copy.deepcopy(ref)
     verbose = True
     pretend = False
+    
     if "verbose" in kwargs:
         verbose = kwargs["verbose"]
     if "pretend" in kwargs:
@@ -59,10 +68,12 @@ def run_tests(ref, **kwargs):
     t['cwd'] = base_path
     for (count,trial) in enumerate(t['trials']):
         myargs = args
+
         for arg in trial['args']:
             myargs.append(arg)
 
         (of_name, ef_name) = output_file_names(t,count+1,output_path)
+
         if pretend:
             of_name = '/dev/null'
             ef_name = '/dev/null'
@@ -71,12 +82,38 @@ def run_tests(ref, **kwargs):
             stderr.write("stdout file: {}, stderr file: {}\n".format(of_name,ef_name))
 
         with open(of_name, 'wb') as of, open(ef_name, 'wb') as ef:
+            #myuid = os.getuid()
+            #nobody_uid = subprocess.check_output(['id','-u','nobody'])
+            #os.setuid(int(nobody_uid))
+            temp_of = tempfile.SpooledTemporaryFile()
+            temp_ef = tempfile.SpooledTemporaryFile()
+            
+
+            stdin = None
+            if 'stdin' in trial and not trial['stdin'] == None:
+                stdin = open(trial['stdin'], 'r')
+
+            signal.signal(signal.SIGALRM, alarm_handler)
+            signal.alarm(2)  # 2 seconds
+
             try:
-                trial['status'] = subprocess.check_call(myargs, stdout=of, stderr=ef, cwd=base_path)
-            except subprocess.CalledProcessError as e:
-                pass
+                if verbose:
+                    stderr.write("Calling subprocess with args: {}, stdin: {}, stdout: {}\n".format(myargs,stdin, temp_of))
+                trial['status'] = subprocess.call(myargs, stdin=stdin, stdout=temp_of, stderr=temp_ef, cwd=base_path)
+                #(stdout_data, stderr_data) = subprocess.communicate(myargs, stdin=stdin, cwd=base_path)
+                #trial['status'] = subprocess.wait()
+                signal.alarm(0)
             except OSError as e:
                 stderr.write("{}: {}\n".format(args[0],e))
+            finally:
+                signal.alarm(0)
+                if hasattr(stdin,'close'):
+                    stdin.close()
+            #os.setuid(myuid)
+            for (real_file, temp_file) in zip([of_name, ef_name], [temp_of, temp_ef]):
+                with open(real_file, 'wb') as f:
+                    f.writelines(line for line in temp_file)
+
             trial['args'] = myargs
             trial['stdout'] = of_name
             trial['stderr'] = ef_name
@@ -106,11 +143,11 @@ if __name__ == '__main__':
     data = args.ref.read()
     t = eval(data,{"__builtins__":None})
     if verbose:
-        stderr.write("Running tests on reference program...\n")
+        stderr.write("Running tests on reference program, output to {}...\n".format(basedir))
     run_tests(t,base_path=basedir,output_path=basedir,verbose=verbose)
 
-    #for (pid,path) in map(shlex.split, fileinput.input(args.files)):
-    for path in map(str.strip, fileinput.input(args.files)):
+    for (pid,path) in map(shlex.split, fileinput.input(args.files)):
+    #for path in map(str.strip, fileinput.input(args.files)):
         if verbose:
             stderr.write("Running tests on {}\n".format(path))
         (basedir,basefile) = os.path.split(path)
@@ -120,7 +157,11 @@ if __name__ == '__main__':
                 stderr.write("Using path as source {}\n".format(basefile))
             path = basedir
 
-        results = run_tests(t, base_path=path, output_path=path, verbose=verbose, pretend=args.pretend)
+        try:
+            results = run_tests(t, base_path=path, output_path=path, verbose=verbose, pretend=args.pretend)
+        except Alarm as e:
+            stderr.write("Timed out\n")
+            
         file_name = ".".join([t['path'], 'test'])
         test_dump = os.path.join(path, file_name)
         if not args.pretend:

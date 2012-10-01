@@ -1,9 +1,8 @@
 #!/usr/bin/env python2
 
 import argparse
-from sys import argv,stdout,stderr,stdin,exit
+import sys
 import os
-import subprocess
 import shlex
 from github import Github #easy_install PyGitHub
 from git import * # aur/gitpython on Arch
@@ -20,14 +19,15 @@ def create_dir(dirname):
     else:
         return True
 
-def sync_repo(username, url, **kwargs):
+def sync_repo(username, url, basepath, **kwargs):
     pretend = False
     if 'pretend' in kwargs:
-        pretend = True
+        pretend = kwargs['pretend']
 
-    userpath = os.path.join(os.path.curdir,username)
-    create_dir(userpath)
-
+    userpath = os.path.join(basepath,username)
+    if not pretend:
+        create_dir(userpath)
+        
     values = url.split('/')
     username = values[3]
     try:
@@ -39,7 +39,7 @@ def sync_repo(username, url, **kwargs):
     url = repo.clone_url
     repopath = os.path.join(userpath, reponame)
 
-    if not os.path.exists(repopath):
+    if not os.path.exists(repopath) and not pretend:
         create_dir(repopath)
         action = 'clone'
     else:
@@ -55,24 +55,25 @@ def sync_repo(username, url, **kwargs):
             try:
                 remote.pull()
             except AssertionError as e:
-                stderr.write("Error on {}:\n\t{}\n".format(username,e))
+                sys.stderr.write("Error on {} with {}:\n\t{}\n".format(username,repopath,e))
             
-    #command = "cd {}; git {} {}".format(repopath,action,url)
-    #print command
-    #subprocess.call(command, shell=True)
     return repopath
 
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Checkout/pull a list of git repositories from github.')
-    #parser.add_argument('csvfile', nargs='?', type=argparse.FileType('r'),default=stdin,
-     #                  help='filename of a comma delimited file containing a list of usernames')
     parser.add_argument("-p","--pretend", action="store_true", help="Do everything except pull/clone repositories")
+    parser.add_argument("basepath", nargs=1, help="Base path")
 
     args = parser.parse_args()
     
-    for line in stdin:
-        (pid,url,project_directory) = shlex.split(line)
-        repopath = sync_repo(pid,url,pretend=args.pretend)
+    basepath = os.path.realpath(args.basepath[0])
+
+    if not os.path.isdir(basepath):
+        sys.stderr.write("{}: not a real directory\n".format(basepath))
+        sys.exit(1)
+
+    for (pid,url,project_directory) in map(shlex.split, sys.stdin):
+        repopath = sync_repo(pid,url,basepath,pretend=args.pretend)
         project_directory = os.path.join(repopath,project_directory)
         print "{} \"{}\"".format(pid,os.path.realpath(project_directory))

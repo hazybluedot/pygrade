@@ -8,6 +8,7 @@ import ast
 import os
 import shlex
 import scholar
+import StringIO
 
 paren_points = re.compile(r'\(([+-][\d]+)\)')
 bracket_points = re.compile(r'\[([+-][\d]+)\]')
@@ -64,6 +65,7 @@ if __name__ == "__main__":
          sys.stderr.write("Student: %s\n" % pid)
       
       #for problem in homework['problems']:
+      path = scholar.feedback_attachments(pid)
       results = [ collect_problem(path,problem,verbose=args.verbose) for problem in homework['problems'] ]
       
       comments_file = scholar.comments_file(pid)
@@ -72,10 +74,13 @@ if __name__ == "__main__":
          sys.stderr.write("Writing comments to {}\n".format(comments_file))
          
       student_total = 0
-      with open(comments_file, 'w') as f:
-         for (problem, (subtotal, outof, comments)) in zip(homework['problems'], results):
-            f.write("{}: {}/{}\n".format(problem['src'], subtotal, outof))
-            f.writelines("\tline {}: {}".format(lineno, comment) for (fname,lineno,comment) in comments if not comment.strip() == '###DKM' )
-            student_total += subtotal
-         f.write("\nsubtotal: {}/{}\n".format(student_total, sum(x['points'] for x in homework['problems']))) 
+      f = StringIO.StringIO()
+      for (problem, (subtotal, outof, comments)) in zip(homework['problems'], results):
+         f.write("## {}: {}/{}\n\n".format(problem['src'], subtotal, outof))
+         f.writelines("\tline {}: {}".format(lineno, comment) for (fname,lineno,comment) in comments if not comment.strip() == '###DKM' )
+         f.write("\n")
+         student_total += subtotal
+      f.write("\n*subtotal:* {}/{}\n".format(student_total, sum(x['points'] for x in homework['problems']))) 
+      scholar.write_comments(pid,f.getvalue())
+      f.close()
       print "{} {}".format(pid,student_total)
