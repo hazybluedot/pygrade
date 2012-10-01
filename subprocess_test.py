@@ -10,6 +10,7 @@ import pprint
 import copy
 import tempfile
 import signal
+from itertools import imap
 
 class Alarm(Exception):
     pass
@@ -49,25 +50,30 @@ def run_tests(ref, **kwargs):
         output_path = kwargs["output_path"]
     else:
         output_path = "./"
-    
     if "base_path" in  kwargs:
         base_path = kwargs["base_path"]
     else:
-        output_path = "./"
+        base_path = "./"
 
     args = shlex.split(t['env'])
 
     if 'local-links' in t:
         for link in t['local-links']:
-            try:
-                os.symlink(link,os.path.join(base_path,os.path.basename(link)))
+            dest = os.path.join(base_path,os.path.basename(link))
+            if os.path.islink(dest):
+                os.remove(dest)
+            try:               
+                if verbose:
+                    stderr.write("{} -> {}\n".format(link,dest))
+                os.symlink(link,dest)
             except EnvironmentError as e:
-                pass 
+                if verbose:
+                    stderr.write("{}: {}\n".format(os.path.basename(link), e))
 
     args.append(t['path'])
     t['cwd'] = base_path
     for (count,trial) in enumerate(t['trials']):
-        myargs = args
+        myargs = args[:]
 
         for arg in trial['args']:
             myargs.append(arg)
@@ -82,13 +88,6 @@ def run_tests(ref, **kwargs):
             stderr.write("stdout file: {}, stderr file: {}\n".format(of_name,ef_name))
 
         with open(of_name, 'wb') as of, open(ef_name, 'wb') as ef:
-            #myuid = os.getuid()
-            #nobody_uid = subprocess.check_output(['id','-u','nobody'])
-            #os.setuid(int(nobody_uid))
-            temp_of = tempfile.SpooledTemporaryFile()
-            temp_ef = tempfile.SpooledTemporaryFile()
-            
-
             stdin = None
             if 'stdin' in trial and not trial['stdin'] == None:
                 stdin = open(trial['stdin'], 'r')
@@ -96,23 +95,36 @@ def run_tests(ref, **kwargs):
             signal.signal(signal.SIGALRM, alarm_handler)
             signal.alarm(2)  # 2 seconds
 
+            header = "## Trial {}... stdin: {}, args: {}\n".format(count+1, trial['stdin'], trial['args'])
+            for flo in [of,ef]:
+                flo.write(header)
+                if (verbose):
+                     flo.write("{}\n".format(myargs))
+                flo.flush()
+
             try:
                 if verbose:
-                    stderr.write("Calling subprocess with args: {}, stdin: {}, stdout: {}\n".format(myargs,stdin, temp_of))
-                trial['status'] = subprocess.call(myargs, stdin=stdin, stdout=temp_of, stderr=temp_ef, cwd=base_path)
+                    stderr.write("Trial {}: calling subprocess with args: {}, stdin: {}, stdout: {}\n".format(count+1, myargs,trial['stdin'], of.name))
+                trial['status'] = subprocess.call(myargs, stdin=stdin, stdout=of, stderr=ef, cwd=base_path)
                 #(stdout_data, stderr_data) = subprocess.communicate(myargs, stdin=stdin, cwd=base_path)
                 #trial['status'] = subprocess.wait()
                 signal.alarm(0)
             except OSError as e:
                 stderr.write("{}: {}\n".format(args[0],e))
-            finally:
-                signal.alarm(0)
-                if hasattr(stdin,'close'):
-                    stdin.close()
+            except Alarm as e:
+                stderr.write("Timed out\n")
+                ef.writelines("Timed out\n")
+
+            signal.alarm(0)
+            if hasattr(stdin,'close'):
+                stdin.close()
+            of.write("%%\n")
+            ef.write("%%\n")
             #os.setuid(myuid)
-            for (real_file, temp_file) in zip([of_name, ef_name], [temp_of, temp_ef]):
-                with open(real_file, 'wb') as f:
-                    f.writelines(line for line in temp_file)
+            #for (real_file, temp_file) in zip([of, ef], [temp_of, temp_ef]):
+            #    with open(real_file, 'wb') as f:
+            #    stderr.write("Writing {} to {}\n".format(temp_file.name, real_file.name))
+            #    real_file.writelines(line for line in temp_file)
 
             trial['args'] = myargs
             trial['stdout'] = of_name
@@ -129,6 +141,7 @@ if __name__ == '__main__':
     parser.add_argument("-v","--verbose", action='store_true', help="Be verbose")
     parser.add_argument("-p","--pretend", action='store_true', help="Run tests but don't write any data")
     parser.add_argument("--ref", type=argparse.FileType('r'), help="Path to reference file")
+    parser.add_argument("-r","--raw", action='store_true', help="Read input as raw path to source file")
 
     args = parser.parse_args()
     if args.verbose:
@@ -146,7 +159,7 @@ if __name__ == '__main__':
         stderr.write("Running tests on reference program, output to {}...\n".format(basedir))
     run_tests(t,base_path=basedir,output_path=basedir,verbose=verbose)
 
-    for (pid,path) in map(shlex.split, fileinput.input(args.files)):
+    for (pid,path) in imap(shlex.split, fileinput.input(args.files)):
     #for path in map(str.strip, fileinput.input(args.files)):
         if verbose:
             stderr.write("Running tests on {}\n".format(path))
@@ -157,10 +170,10 @@ if __name__ == '__main__':
                 stderr.write("Using path as source {}\n".format(basefile))
             path = basedir
 
-        try:
-            results = run_tests(t, base_path=path, output_path=path, verbose=verbose, pretend=args.pretend)
-        except Alarm as e:
-            stderr.write("Timed out\n")
+        #try:
+        results = run_tests(t, base_path=path, output_path=path, verbose=verbose, pretend=args.pretend)
+        #except Alarm as e:
+        #    stderr.write("Timed out\n")
             
         file_name = ".".join([t['path'], 'test'])
         test_dump = os.path.join(path, file_name)
