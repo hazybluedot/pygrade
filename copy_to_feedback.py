@@ -6,6 +6,7 @@ import shlex
 import os
 import fileinput
 import sys
+from itertools import imap
 
 if __name__=='__main__':
 
@@ -19,8 +20,8 @@ if __name__=='__main__':
    
    (homework,scholar) = scholar.open_homework(args.f)
 
-   for (pid,path) in map(shlex.split, fileinput.input(args.files)):
-      with scholar.FeedbackDir(pid) as feedback_path:
+   for (pid,path) in imap(shlex.split, fileinput.input(args.files)):
+      #with scholar.FeedbackDir(pid) as feedback_path:
       if args.all:
          files = os.listdir(path)
          scholar.copy_to_feedback(pid,path)

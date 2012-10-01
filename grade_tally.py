@@ -65,7 +65,7 @@ if __name__ == "__main__":
          sys.stderr.write("Student: %s\n" % pid)
       
       #for problem in homework['problems']:
-      path = scholar.feedback_attachments(pid)
+      #path = scholar.feedback_attachments(pid)
       results = [ collect_problem(path,problem,verbose=args.verbose) for problem in homework['problems'] ]
       
       comments_file = scholar.comments_file(pid)

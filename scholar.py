@@ -9,6 +9,8 @@ import sys
 import csv
 from itertools import imap
 import tempfile
+import glob
+import time
 
 class ScholarError(Exception):
    pass
@@ -98,6 +100,11 @@ def open_grades(name, mode):
          
    return ScholarGrades(name, mode)
 
+def get_full_list(path):
+   tree = []
+   for root, dirs, files in os.walk(path):
+      tree.extend([ os.path.join(root,file) for file in files])
+   return tree
 
 class ScholarArchive:
    def __init__(self, path, mode):
@@ -106,29 +113,37 @@ class ScholarArchive:
             with ZipFile(path, 'r') as myzip:
                contents = [info.filename for info in myzip.infolist()]
                self.prefix = os.path.commonprefix(contents)
-               grades_csv = os.path.join(self.prefix,'grades.csv')
-               with open_grades(myzip.open(grades_csv), 'r') as grades:
-                  self.students = grades.student_list()
-                  self.__construct_dict(contents)
-               self.path = path
-               self.grades_csv = grades_csv
-               self.archive = os.path.realpath(path)
-               self.unpacked = None
-
-         except BadZipfile as e:
+               self.__populate(self.prefix)
+         except BadZipfile as e:            
             raise ScholarError("{}: not a zip file".format(path))
-         
+         else:
+            self.archive = os.path.realpath(path)
+            self.unpacked = None
 
-   def __construct_dict(self, contents):
+      else:
+         self.__populate(path)
+      self.temp_feedback_dir = None
+
+   def __populate(self,prefix):
+      grades_csv = os.path.join(prefix,'grades.csv')
+      with open_grades(grades_csv, 'r') as grades:
+         self.students = grades.student_list()
+         contents = get_full_list(prefix)
+         self.__construct_dict(prefix,contents)
+      self.grades_csv = grades_csv
+      
+   def __construct_dict(self, prefix, contents):
       for pid in self.students:
          #m = re.search(r'[\w, -]+\((\w+)\)', mdir)
          student = self.students[pid]
-         prefix =  os.path.join(self.prefix, "{}, {}({})".format(student['Last Name'],student['First Name'],pid))
-         comments_file = os.path.join(prefix, 'comments.txt')
+         sprefix =  os.path.join(prefix, "{}, {}({})".format(student['Last Name'],student['First Name'],pid))
+         comments_file = os.path.join(sprefix, 'comments.txt')
          if not comments_file in contents:
-            sys.stderr.write("Could not find {} in contents\n".format(comments_file))
+            sys.stderr.write("Could not find {} in contents of {}\n".format(comments_file, prefix))
+            sys.stderr.writelines("{}\n".format(path) for path in contents)
+            quit(1)
          else:
-            self.students[pid]['prefix'] = prefix
+            self.students[pid]['prefix'] = sprefix
 
    def __write(self, filename, dest):
       with ZipFile(self.path, 'w') as zf:
@@ -168,12 +183,13 @@ class ScholarArchive:
       return GradeTemp(self)
 
    def comments_file(self,pid):
-      return os.path.join(self.students[pid], 'comments.txt')
+      return os.path.join(self.students[pid]['prefix'], 'comments.txt')
 
    def feedback_attachments(self,pid):
-      feedback_path = os.path.join(self.students[pid], 'Feedback Attachment(s)')
-      archives = glob.glob(os.path.join(feedback_path, 'feedback_*.tar.gz'))
-      self.temp_feedback_dir = tempfile.mkdtemp()
+      feedback_path = os.path.join(self.students[pid]['prefix'], 'Feedback Attachment(s)')
+      if not self.temp_feedback_dir:
+         self.temp_feedback_dir = tempfile.mkdtemp()
+      return os.path.join(self.temp_feedback_dir, pid)
       #for archive in archives:
 
    def feedback_text(self,pid):
@@ -181,13 +197,27 @@ class ScholarArchive:
 
    def copy_to_feedback(self,pid,src):
       if os.path.isdir(src):
-         shutil.copytree()
+         sys.stderr.write("Copying {} to Feedback Attachments\n".format(src))
+         shutil.copytree(src, self.feedback_attachments(pid))
+         self.commit_feedback(pid)
       else:
          shutil.copy(src, self.feedback_attachments(pid))
 
+   def pids(self):
+      return self.students.keys()
+
    def commit_feedback(self,pid):
-      if self.temp_feedback_dir:
-         shutil.make_archive(basename, 'gztar',root_dir=self.temp_feedback_dir)
+      feedback_dir = self.feedback_attachments(pid)
+      if feedback_dir:
+         basename = "feedback_{:d}".format(int(time.time()))
+         basedir = os.path.join(self.students[pid]['prefix'], 'Feedback Attachment(s)')
+         old_archives = glob.glob(os.path.join(basedir, 'feedback_*.tar.gz'))
+         sys.stderr.write("Writing {} to {}\n".format(basename, basedir))
+         shutil.make_archive(os.path.join(basedir,basename), 'gztar',root_dir=feedback_dir)
+         shutil.rmtree(self.temp_feedback_dir)
+         for archive in old_archives:
+            sys.stderr.write("Removing old archive {}\n".format(archive))
+            os.remove(archive)
          self.temp_feedback_dir = None
 
    #def write_feedback_text(self, pid, text):
@@ -211,7 +241,7 @@ def open_homework(f):
        sys.exit(1)
    else:
        scholar_path = os.path.join(os.getcwd(), homework['name'])
-       scholar = ScholarArchive(scholar_path)
+       scholar = ScholarArchive(scholar_path, 'w')
        return (homework, scholar)
 
 if __name__=='__main__':

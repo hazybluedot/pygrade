@@ -159,28 +159,29 @@ if __name__ == '__main__':
         stderr.write("Running tests on reference program, output to {}...\n".format(basedir))
     run_tests(t,base_path=basedir,output_path=basedir,verbose=verbose)
 
-    for (pid,path) in imap(shlex.split, fileinput.input(args.files)):
-    #for path in map(str.strip, fileinput.input(args.files)):
-        if verbose:
-            stderr.write("Running tests on {}\n".format(path))
-        (basedir,basefile) = os.path.split(path)
-
-        if basefile == t['path']:
+    for tokens in map(shlex.split, fileinput.input(args.files)):
+        for path in ( token for token in tokens if os.path.isfile(token) ):
             if verbose:
-                stderr.write("Using path as source {}\n".format(basefile))
-            path = basedir
-
-        #try:
-        results = run_tests(t, base_path=path, output_path=path, verbose=verbose, pretend=args.pretend)
-        #except Alarm as e:
-        #    stderr.write("Timed out\n")
+                stderr.write("Running tests on {}\n".format(path))
             
-        file_name = ".".join([t['path'], 'test'])
-        test_dump = os.path.join(path, file_name)
-        if not args.pretend:
-            with open(test_dump, 'wb') as f:
-                pprint.pprint(results,f)
-                print "{}".format(os.path.realpath(f.name))
-                #return "'" + s.replace("'", "'\\''") + "'"
-        else:
-            print "Pretending to write to {}".format(test_dump)
+            (basedir,basefile) = os.path.split(path)
+
+            if basefile == t['path']:
+                if verbose:
+                    stderr.write("Using path as source {}\n".format(basefile))
+                path = basedir
+
+            try:
+                results = run_tests(t, base_path=path, output_path=path, verbose=verbose, pretend=args.pretend)
+            except Alarm as e:
+                stderr.write("Timed out\n")
+
+            file_name = ".".join([t['path'], 'test'])
+            test_dump = os.path.join(path, file_name)
+            if not args.pretend:
+                with open(test_dump, 'wb') as f:
+                    pprint.pprint(results,f)
+                    print "{}".format(os.path.realpath(f.name))
+                    #return "'" + s.replace("'", "'\\''") + "'"
+            else:
+                print "Pretending to write to {}".format(test_dump)
