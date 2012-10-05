@@ -37,12 +37,18 @@ Note: During this process submitted code is run using Python's subprocess module
         review_diffs.py <(find $REPODIR -name $FILE.test)
 		
 Find Ungraded Workflow
-______________________
+----------------------
 
     find_ungraded.sh repos/ $SRC_NAME | subprocess_test.py --ref solutions/$SRC_NAME.test | \
         compare_files.py --ref solutions/mult.py.test solutions/mult2.py.test > ungraded
     review_diffs.py -t <ungraded
 
+Scholar Workflow
+----------------
+
+    find_basedirs.py -f $HOMEWORK.grading --base-dir repos/ | ~/workspace/pygrade/copy_to_feedback.py -f $HOMEWORK.grading -a
+	find_basedirs.py -f $HOMEWORK.grading --base-dir repos/ | grade_tally.py -f $HOMEWORK.grading | update_grades.py $SCHOLAR_DIR/grades.csv
+	
 ToDo
 ----
 Better file name matching?  This can be a losing battle.  If the script get's "smarter" with what it accepts there is inevitably more variability in what 
