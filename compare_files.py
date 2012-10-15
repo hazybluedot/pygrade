@@ -8,6 +8,7 @@ import ast
 import subprocess_test as spt
 import pprint 
 from itertools import imap
+import testloader as tl
 
 def do_refs(ref_test, do):
     for test in ref_test:
@@ -84,15 +85,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    ref_test = {}
-
-    try:
-        for ref in args.ref:
-            ref_test[ref.name] = ast.literal_eval(ref.read())
-    except SyntaxError as e:
-        sys.stderr.write("Could not parse reference file {}\n".format(ref_file.name))
-        sys.exit(1)
-
+    tl.ref_test = load_tests(args.ref)
     open_refs(ref_test)
 
     #for (pid,path) in map(shlex.split, fileinput.input(args.files)):

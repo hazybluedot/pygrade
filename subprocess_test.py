@@ -2,7 +2,7 @@
 
 import subprocess
 import os
-from sys import stderr,exit
+import sys
 import shlex
 import fileinput
 import pickle
@@ -11,6 +11,7 @@ import copy
 import tempfile
 import signal
 from itertools import imap
+import testloader as tl
 
 class Alarm(Exception):
     pass
@@ -25,10 +26,10 @@ def output_file_names(t, trial_num, output_path, **kwargs):
 
     (basedir,basefile) = os.path.split(t['path'])
     if verbose:
-        stderr.write("basedir: {}, basename: {}\n".format(basedir,basefile))
+        sys.stderr.write("basedir: {}, basename: {}\n".format(basedir,basefile))
     name = [basefile, '_trial{}'.format(trial_num)]
     if verbose:
-        stderr.write("name array: {}\n".format(name))
+        sys.stderr.write("name array: {}\n".format(name))
     of_name_array = name[:]
     ef_name_array = name[:]
     of_name_array.append('.stdout')
@@ -64,11 +65,11 @@ def run_tests(ref, **kwargs):
                 os.remove(dest)
             try:               
                 if verbose:
-                    stderr.write("{} -> {}\n".format(link,dest))
+                    sys.stderr.write("{} -> {}\n".format(link,dest))
                 os.symlink(link,dest)
             except EnvironmentError as e:
                 if verbose:
-                    stderr.write("{}: {}\n".format(os.path.basename(link), e))
+                    sys.stderr.write("{}: {}\n".format(os.path.basename(link), e))
 
     args.append(t['path'])
     t['cwd'] = base_path
@@ -85,7 +86,7 @@ def run_tests(ref, **kwargs):
             ef_name = '/dev/null'
 
         if verbose:
-            stderr.write("stdout file: {}, stderr file: {}\n".format(of_name,ef_name))
+            sys.stderr.write("stdout file: {}, stderr file: {}\n".format(of_name,ef_name))
 
         with open(of_name, 'wb') as of, open(ef_name, 'wb') as ef:
             stdin = None
@@ -104,15 +105,15 @@ def run_tests(ref, **kwargs):
 
             try:
                 if verbose:
-                    stderr.write("Trial {}: calling subprocess with args: {}, stdin: {}, stdout: {}\n".format(count+1, myargs,trial['stdin'], of.name))
+                    sys.stderr.write("Trial {}: calling subprocess with args: {}, stdin: {}, stdout: {}\n".format(count+1, myargs,trial['stdin'], of.name))
                 trial['status'] = subprocess.call(myargs, stdin=stdin, stdout=of, stderr=ef, cwd=base_path)
                 #(stdout_data, stderr_data) = subprocess.communicate(myargs, stdin=stdin, cwd=base_path)
                 #trial['status'] = subprocess.wait()
                 signal.alarm(0)
             except OSError as e:
-                stderr.write("{}: {}\n".format(args[0],e))
+                sys.stderr.write("{}: {}\n".format(args[0],e))
             except Alarm as e:
-                stderr.write("Timed out\n")
+                sys.stderr.write("Timed out\n")
                 ef.writelines("Timed out\n")
 
             signal.alarm(0)
@@ -140,41 +141,40 @@ if __name__ == '__main__':
     parser.add_argument("-f", help="Name of action file")
     parser.add_argument("-v","--verbose", action='store_true', help="Be verbose")
     parser.add_argument("-p","--pretend", action='store_true', help="Run tests but don't write any data")
-    parser.add_argument("--ref", type=argparse.FileType('r'), help="Path to reference file")
+    parser.add_argument("--ref", type=argparse.FileType('r'), nargs='+', help="Path to reference file")
     parser.add_argument("-r","--raw", action='store_true', help="Read input as raw path to source file")
+    parser.add_argument("--basedir", action='store', default=None, help="Base directory to use for reference files")
 
     args = parser.parse_args()
     if args.verbose:
         verbose=True
 
     if verbose:
-        stderr.write("args: {}\n".format(args))
-    (basedir,basefile) = os.path.split(args.ref.name)
-    if verbose:
-        stderr.write("basedir: {}, basename: {}\n".format(basedir,basefile))
+        sys.stderr.write("args: {}\n".format(args))
+    tests = tl.load_tests(args.ref,verbose=True, basedir=args.basedir)
+    for (k,t) in tests.items():
 
-    data = args.ref.read()
-    t = eval(data,{"__builtins__":None})
-    if verbose:
-        stderr.write("Running tests on reference program, output to {}...\n".format(basedir))
-    run_tests(t,base_path=basedir,output_path=basedir,verbose=verbose)
+        if verbose:
+            sys.stderr.write("Running tests on reference program {}, output to {}...\n".format(t['path'], t['basedir']))
+            
+            run_tests(t,base_path=t['basedir'],output_path=t['basedir'],verbose=verbose)
 
     for tokens in map(shlex.split, fileinput.input(args.files)):
-        for path in ( token for token in tokens if os.path.isfile(token) ):
+        for path in tokens:
             if verbose:
-                stderr.write("Running tests on {}\n".format(path))
+                sys.stderr.write("Running tests on {}\n".format(path))
             
             (basedir,basefile) = os.path.split(path)
 
             if basefile == t['path']:
                 if verbose:
-                    stderr.write("Using path as source {}\n".format(basefile))
+                    sys.stderr.write("Using path as source {}\n".format(basefile))
                 path = basedir
 
             try:
                 results = run_tests(t, base_path=path, output_path=path, verbose=verbose, pretend=args.pretend)
             except Alarm as e:
-                stderr.write("Timed out\n")
+                sys.stderr.write("Timed out\n")
 
             file_name = ".".join([t['path'], 'test'])
             test_dump = os.path.join(path, file_name)
