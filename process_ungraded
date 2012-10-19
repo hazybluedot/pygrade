@@ -1,0 +1,7 @@
+
+if [ -r "solutions/$1.test" ]; then
+find_ungraded.sh repos/ $1 | subprocess_test.py --ref "solutions/$1.test" \
+	| compare_files.py --ref "solutions/$1.test" 
+else
+    echo "$1: could not find test suite"
+fi

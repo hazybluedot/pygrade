@@ -2,12 +2,7 @@ from sys import stderr,exit
 from os import path
 from ast import literal_eval
 from operator import itemgetter
-
-def maybe(this, name, orthat):
-    try:
-        return this[name]
-    except KeyError as e:
-        return orthat
+from maybe import maybe
 
 def load_problem_set(pset,basedir):
     tests = []

@@ -5,40 +5,7 @@ import ast
 import shlex
 import os
 import subprocess
-
-class EmacsClient:
-    def __init__(self,servername='grading'):
-        self.args = ['emacsclient','--server-file',servername]
-        self.buffers = []
-
-    def open_file(self,name,**kwargs):
-        args = self.args[:]
-        if 'nowait' in kwargs:
-            args.append('-n')
-        #args.append('-e')
-        #args.append("(find file {})".format(name))
-        #args.append('-c')
-        #args.append('-nw')
-        args.append(name)
-        #tmux_args = ['tmux','split-window']
-        #tmux_args.extend(args)
-        #print tmux_args
-        ret = subprocess.check_call(args)
-        self.buffers.append(os.path.basename(name))
-
-    def kill_buffer(self,name):
-        args = self.args[:]
-        args.append('-e')
-        args.append('(kill-buffer \"{}\")'.format(name))
-        try:
-            subprocess.check_call(args)
-        except subprocess.CalledProcessError as e:
-            pass
-            
-    def kill_all(self):
-        for buffer in self.buffers:
-            self.kill_buffer(buffer)
-        self.buffers = []
+from emacsclient import EmacsClient
 
 if __name__ == '__main__':
     import argparse
