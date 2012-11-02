@@ -21,17 +21,17 @@ if __name__=='__main__':
         
     dirs = []
     for problem in homework['problems']:
-        find_cmd = ['find', args.base_dir, '-name', problem['src'] ]
+        (pbase,pfile) = os.path.split(problem['src'])
+        find_cmd = ['find', args.base_dir, '-name', pfile ]
         results = subprocess.check_output(find_cmd)
         dirs.extend([ os.path.split(path)[0] for path in results.split("\n") ])
 
     dirs = list(set(dirs))
     for pid in scholar.pids():
-        try:
-            path = [ entry for entry in dirs if entry.find("{}/".format(pid)) >= 0 ][0]
-        except IndexError as e:
-            sys.stderr.write("No directory found for {}\n".format(pid))
-        else:
+        path = os.path.commonprefix([ entry for entry in dirs if entry.find("{}/".format(pid)) >= 0 ])
+        if path:
             print "{} \"{}\"".format(pid, path)
+        else:
+            sys.stderr.write("No directory found for {}\n".format(pid))
         #for path in results.split("\n"):
         #    print path

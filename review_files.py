@@ -7,6 +7,7 @@ from os import path
 import argparse
 import subprocess
 from maybe import maybe
+import imp
 
 def subprocess_args(script):
     args = [script]
@@ -19,19 +20,24 @@ def subprocess_args(script):
                 args = dargs
     return args
 
+def on_test(args, **kwargs):
+    stderr.write("running test: {}\n".format(args))
+    
+
 def on_suggest(args, **kwargs):
     stderr.write("{}\n".format(args))
 
 def on_review(args, **kwargs):
-    stderr.write("reviewing file {}\n".format(args))
+    #stderr.write("reviewing file {}\n".format(args))
     if 'ec' in kwargs:
-        kwargs['ec'].open_file(args, nowait=True, **kwargs)
+        kwargs['ec'].open_file(args, **kwargs)
     else:
         stderr.write("Error: on_review, no 'ec' EmacsClient object\n")
 
 def parse_actions(actions, **kwargs): 
     stderr.write("kwargs keys: {}\n".format(kwargs.keys()))
-    action_callers = {'review': on_review, 'suggest': on_suggest}
+    to_review = []
+    action_callers = {'review': lambda x,**k: to_review.append(x), 'suggest': on_suggest, 'test': on_test}
     verbose = maybe(kwargs,'verbose',False)
     if verbose:
         stderr.writelines("action -- {}\n".format(action) for action in actions)
@@ -41,10 +47,13 @@ def parse_actions(actions, **kwargs):
         except KeyError as e:
             stderr.write("Action '{}' is not implemented\n".format(action))
 
-def signal_handler(signal, frame):
-        print 'You pressed Ctrl+C!'
-        sys.exit(0)
-
+    stderr.write("Reviewing: {}\n".format(to_review))
+    kwargs['nowait']=True
+    for review in to_review[:-1]:
+        on_review(review, **kwargs)
+    kwargs['nowait']=False
+    on_review(to_review[-1], **kwargs)
+        
 if __name__=='__main__':
 
     parser = argparse.ArgumentParser()
@@ -57,11 +66,15 @@ if __name__=='__main__':
 
     if path.isfile(args.file):
         pargs = subprocess_args(args.file)
-
-    ec = EmacsClient()
+        (module_name,dot,ext) = args.file.partition('.')
+        action = imp.load_source(module_name, args.file)
+    else:
+        stderr.write("{}: could not find action file\n".format(args.file))
+        exit(1)
+    ec = EmacsClient(servername=action.session_name())
 
     for line in imap(lambda x: x.strip("\" \n"), stdin):
-        if path.isfile(line):
+        if path.isfile(line) or path.isdir(line):
             stderr.write("{}\n".format(line))
             if args.verbose:
                 stderr.write("Running action {} with input {}\n".format(pargs, line))
@@ -70,11 +83,6 @@ if __name__=='__main__':
             actions = [action for action in (action.strip() for action in pout.split('\n')) if action]
             parse_actions(actions, verbose=args.verbose, ec=ec)
             stderr.write("paction error: {}\n".format(perr))
-            try:
-                ec.open_file(line)
-            except KeyboardInterrupt:
-                stdout.write("\n")
-                break
             ec.kill_all()
         else:
             stderr.write("{}: Invalid path\n".format(line))

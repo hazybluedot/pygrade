@@ -65,7 +65,6 @@ def open_grades(name, mode):
          self.entries = [ strip_dict(entry) for entry in reader ]
 
       def student_list(self):
-         dict([('dmaczka', dict([('First Name', 'Darren'),('Last Name', 'Maczka')]))])
          return dict([ (entry['ID'], 
                           dict([('First Name', entry['First Name']), ('Last Name', entry['Last Name']) ]))
                           for entry in self.entries ] )
@@ -198,7 +197,7 @@ class ScholarArchive:
    def copy_to_feedback(self,pid,src):
       if os.path.isdir(src):
          sys.stderr.write("Copying {} to Feedback Attachments\n".format(src))
-         shutil.copytree(src, self.feedback_attachments(pid))
+         shutil.copytree(src, self.feedback_attachments(pid), symlinks=True)
          self.commit_feedback(pid)
       else:
          shutil.copy(src, self.feedback_attachments(pid))
@@ -237,10 +236,11 @@ def open_homework(f):
       f.close()
    except SyntaxError as e:
        f.close()
-       sys.stderr.write("{}: Problem parsing file. {}\n".format(args.f.name, e))
+       sys.stderr.write("{}: Problem parsing file. {}\n".format(f.name, e))
        sys.exit(1)
    else:
        scholar_path = os.path.join(os.getcwd(), homework['name'])
+       sys.stderr.write("Using Scholar Path: {}\n".format(scholar_path))
        scholar = ScholarArchive(scholar_path, 'w')
        return (homework, scholar)
 

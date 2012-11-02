@@ -11,11 +11,10 @@ from itertools import imap
 import testloader as tl
 
 def do_refs(ref_test, do):
-    for test in ref_test:
-        (basedir,filename) = os.path.split(test)
-        for (count, trial) in enumerate(ref_test[test]['trials']):
-            path = ref_test[test]['path']
-            (of_name, ef_name) = spt.output_file_names(ref_test[test],count+1,basedir)
+    for (k,test) in ref_test.items():
+        for (count, trial) in enumerate(test['trials']):
+            path = test['path']
+            (of_name, ef_name) = spt.output_file_names(test,count+1,test['basedir'])
             try:
                 do(trial['stdout'])
                 do(trial['stderr'])
@@ -82,20 +81,21 @@ if __name__ == '__main__':
     parser.add_argument("files", metavar='FILE', nargs="*", help="File name to read paths to source files from")
     parser.add_argument("--ref", type=argparse.FileType('r'), nargs='+', help="Path to reference file (.test)")
     parser.add_argument("--verbose","-v", action="store_true", help="Be verbose")
+    parser.add_argument("--basedir", action='store', default=None, help="Base directory to use for reference files")
 
     args = parser.parse_args()
 
-    tl.ref_test = load_tests(args.ref)
+    ref_test = tl.load_tests(args.ref, basedir=args.basedir)
     open_refs(ref_test)
 
     #for (pid,path) in map(shlex.split, fileinput.input(args.files)):
     for path in imap(str.strip, fileinput.input(args.files)):
         if os.path.isfile(path):
             (path,filename) = os.path.split(path)
-        for test in ref_test:
+        for (name,test) in ref_test.items():
             (basedir,filename) = os.path.split(path)
-            if filename == ref_test[test]['path']:
+            if filename == test['path']:
                 path = basedir
-            run_trials(ref_test[test],path)
+            run_trials(test,path)
 
     close_refs(ref_test)

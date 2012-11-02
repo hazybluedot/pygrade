@@ -8,8 +8,6 @@ from github import Github #easy_install PyGitHub
 from git import * # aur/gitpython on Arch
 from itertools import imap
 
-github = Github()
-
 def create_dir(dirname):
     if not os.path.exists(dirname):
         try:
@@ -46,12 +44,12 @@ def sync_repo(username, url, basepath, **kwargs):
     else:
         action = 'pull'
 
-    repo = Repo(repopath)
-
     if not pretend:
         if action == 'clone':
-            repo.clone_from(url,repopath)
+            sys.stderr.write("Cloning {} to {}\n".format(url,repopath))
+            repo = Repo.clone_from(url,repopath)
         else:
+            repo = Repo(repopath)
             remote = repo.remote(name='origin')
             try:
                 remote.pull()
@@ -66,10 +64,16 @@ if __name__ == '__main__':
     parser.add_argument("-p","--pretend", action="store_true", help="Do everything except pull/clone repositories")
     parser.add_argument("-r","--raw", action="store_true", help="Read input as raw git repositories to sync")
     parser.add_argument("basepath", nargs=1, help="Base path")
-
+    parser.add_argument("-c","--credentials", help="Path to github credentials file")
     args = parser.parse_args()
     
     basepath = os.path.realpath(args.basepath[0])
+
+    with open(args.credentials, 'rb') as f:
+        sys.stderr.write("Using {}\n".format(args.credentials))
+        username = f.readline().strip()
+        password = f.readline().strip()
+        github = Github(username, password)
 
     if not os.path.isdir(basepath):
         sys.stderr.write("{}: not a real directory\n".format(basepath))
@@ -87,6 +91,7 @@ if __name__ == '__main__':
                 sys.stderr.write("{}: AssertionError\n".format(repodir))
     else:
         for (pid,url,project_directory) in imap(shlex.split, sys.stdin):
+            rate_limit = 1
             repopath = sync_repo(pid,url,basepath,pretend=args.pretend)
             project_directory = os.path.join(repopath,project_directory)
             print "{} \"{}\"".format(pid,os.path.realpath(project_directory))

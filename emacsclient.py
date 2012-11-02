@@ -7,13 +7,13 @@ class EmacsClient:
     def __init__(self,servername=None):
         self.args = ['emacsclient']
         if servername:
-            self.args.expand(['--server-file',servername])
+            self.args.extend(['--server-file={}'.format(servername)])
         self.buffers = []
 
     def open_file(self,name,**kwargs):
         verbose = maybe(kwargs,'verbose',False)
         args = self.args[:]
-        if 'nowait' in kwargs:
+        if 'nowait' in kwargs and kwargs['nowait']:
             args.append('-n')
         #args.append('-e')
         #args.append("(find file {})".format(name))

@@ -9,6 +9,7 @@ import os
 import shlex
 import scholar
 import StringIO
+from maybe import maybe
 
 paren_points = re.compile(r'\(([+-][\d]+)\)')
 bracket_points = re.compile(r'\[([+-][\d]+)\]')
@@ -35,18 +36,19 @@ def collect_problem(path, problem, **kwargs):
 
    points=0
    comments = []
+   total_points = maybe(problem, 'points', int(0))
    try:
       with open(os.path.join(path,problem['src']), 'r') as f:
          (points,comments) = collect_points(f)
    except IOError as e:
-      points = -int(problem['points'])
+      points = -total_points
       comments.append((problem['src'],0,'Could not find source file\n'))
 
-   subtotal = problem['points']+points
+   subtotal = total_points+points
    if verbose:
-      sys.stderr.write("\tpoints for {}: {}/{}\n".format(problem['src'],subtotal,problem['points']))
+      sys.stderr.write("\tpoints for {}: {}/{}\n".format(problem['src'],subtotal,total_points))
       sys.stderr.writelines("\t{}:{} {}".format(fname,lineno,line) for (fname,lineno,line) in comments if not line.strip() == '###DKM')
-   return (subtotal, problem['points'], comments)
+   return (subtotal, total_points, comments)
 
 
 if __name__ == "__main__":
@@ -76,11 +78,20 @@ if __name__ == "__main__":
       student_total = 0
       f = StringIO.StringIO()
       for (problem, (subtotal, outof, comments)) in zip(homework['problems'], results):
-         f.write("## {}: {}/{}\n\n".format(problem['src'], subtotal, outof))
-         f.writelines("\tline {}: {}".format(lineno, comment) for (fname,lineno,comment) in comments if not comment.strip() == '###DKM' )
+         if outof > 0:
+            point_report="{}/{}".format(subtotal,outof)
+         else:
+            point_report="{}".format(subtotal)
+
+         f.write("## {}: {}\n\n".format(problem['src'], point_report))
+         if args.verbose:
+            sys.stderr.write("{} comments: {}\n".format(problem['src'], comments))
+         f.writelines("\tline {}: {}\n".format(lineno, comment.strip()) for (fname,lineno,comment) in comments if not comment.strip() == '###DKM' )
          f.write("\n")
          student_total += subtotal
-      f.write("\n*subtotal:* {}/{}\n".format(student_total, sum(x['points'] for x in homework['problems']))) 
+      f.write("\n*subtotal:* {}/{}\n".format(student_total, sum(maybe(x, 'points', 0) for x in homework['problems']))) 
+      if args.verbose:
+         sys.stderr.write("Markdown comments:\n{}".format(f.getvalue()))
       scholar.write_comments(pid,f.getvalue())
       f.close()
       print "{} {}".format(pid,student_total)

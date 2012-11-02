@@ -138,7 +138,6 @@ if __name__ == '__main__':
     verbose = False
     parser = argparse.ArgumentParser(description='Compare the output of a program to a reference program')
     parser.add_argument("files", metavar='FILE', nargs="*", help="Path to program to test")
-    parser.add_argument("-f", help="Name of action file")
     parser.add_argument("-v","--verbose", action='store_true', help="Be verbose")
     parser.add_argument("-p","--pretend", action='store_true', help="Run tests but don't write any data")
     parser.add_argument("--ref", type=argparse.FileType('r'), nargs='+', help="Path to reference file")
@@ -151,12 +150,10 @@ if __name__ == '__main__':
 
     if verbose:
         sys.stderr.write("args: {}\n".format(args))
-    tests = tl.load_tests(args.ref,verbose=True, basedir=args.basedir)
+    tests = tl.load_tests(args.ref,verbose=verbose, basedir=args.basedir)
     for (k,t) in tests.items():
-
         if verbose:
-            sys.stderr.write("Running tests on reference program {}, output to {}...\n".format(t['path'], t['basedir']))
-            
+            sys.stderr.write("Running {} tests on reference program {}, output to {}...\n".format(k, t['path'], t['basedir']))            
             run_tests(t,base_path=t['basedir'],output_path=t['basedir'],verbose=verbose)
 
     for tokens in map(shlex.split, fileinput.input(args.files)):
@@ -171,17 +168,15 @@ if __name__ == '__main__':
                     sys.stderr.write("Using path as source {}\n".format(basefile))
                 path = basedir
 
-            try:
+            for (k,t) in tests.items():
                 results = run_tests(t, base_path=path, output_path=path, verbose=verbose, pretend=args.pretend)
-            except Alarm as e:
-                sys.stderr.write("Timed out\n")
 
-            file_name = ".".join([t['path'], 'test'])
-            test_dump = os.path.join(path, file_name)
-            if not args.pretend:
-                with open(test_dump, 'wb') as f:
-                    pprint.pprint(results,f)
-                    print "{}".format(os.path.realpath(f.name))
+                file_name = ".".join([t['path'], 'test'])
+                test_dump = os.path.join(path, file_name)
+                if not args.pretend:
+                    with open(test_dump, 'wb') as f:
+                        pprint.pprint(results,f)
+                        print "{}".format(os.path.realpath(f.name))
                     #return "'" + s.replace("'", "'\\''") + "'"
-            else:
-                print "Pretending to write to {}".format(test_dump)
+                else:
+                    print "Pretending to write to {}".format(test_dump)
