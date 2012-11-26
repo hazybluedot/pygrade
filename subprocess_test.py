@@ -70,48 +70,67 @@ def run_tests(ref, **kwargs):
             except EnvironmentError as e:
                 if verbose:
                     sys.stderr.write("{}: {}\n".format(os.path.basename(link), e))
+    if 'path' in t:
+        args.append(t['path'])
+    if 'trials' in t:
+        for (count,trial) in enumerate(t['trials']):
+            myargs = args[:]
+            for arg in trial['args']:
+                myargs.append(arg)
 
-    args.append(t['path'])
+            (of_name, ef_name) = output_file_names(t,count+1,output_path)
+            stdin = None
+            if 'stdin' in trial and not trial['stdin'] == None:
+                stdin = trial['stdin']
+            execs.append({"args": args, 'stdin': stdin})
+
     t['cwd'] = base_path
-    for (count,trial) in enumerate(t['trials']):
-        myargs = args[:]
-
-        for arg in trial['args']:
-            myargs.append(arg)
-
-        (of_name, ef_name) = output_file_names(t,count+1,output_path)
-
+    for (count,mexec) in enumerate(t['exec']):
+        trial = {}
+        stdin = None
         if pretend:
             of_name = '/dev/null'
             ef_name = '/dev/null'
+        elif hasattr(mexec, 'keys') and 'of_name' in mexec and 'ef_name' in mexec:
+            of_name = mexec['of_name']
+            ef_name = mexec['ef_name']
+            if 'stdin' in mexec and not mexec['stdin'] == None:
+                stdin = open(mexec['stdin'], 'r')
+            myargs = mexec['args']
+        else:
+            base_name = "trial{0}".format(count)
+            of_name = os.path.join(output_path, ".".join([base_name, "stdout"]))
+            ef_name = os.path.join(output_path, ".".join([base_name, "stderr"]))
+            myargs = shlex.split(mexec)
 
         if verbose:
             sys.stderr.write("stdout file: {}, stderr file: {}\n".format(of_name,ef_name))
 
         with open(of_name, 'wb') as of, open(ef_name, 'wb') as ef:
-            stdin = None
-            if 'stdin' in trial and not trial['stdin'] == None:
-                stdin = open(trial['stdin'], 'r')
-
             signal.signal(signal.SIGALRM, alarm_handler)
-            signal.alarm(2)  # 2 seconds
+            signal.alarm(5)  # 2 seconds
 
-            header = "## Trial {}... stdin: {}, args: {}\n".format(count+1, trial['stdin'], trial['args'])
+            header = "## Trial {0}... stdin: {1}, args: {2}\n".format(count+1, stdin, args)
             for flo in [of,ef]:
                 flo.write(header)
                 if (verbose):
-                     flo.write("{}\n".format(myargs))
+                     flo.write("{0}\n".format(myargs))
                 flo.flush()
 
             try:
                 if verbose:
-                    sys.stderr.write("Trial {}: calling subprocess with args: {}, stdin: {}, stdout: {}\n".format(count+1, myargs,trial['stdin'], of.name))
-                trial['status'] = subprocess.call(myargs, stdin=stdin, stdout=of, stderr=ef, cwd=base_path)
+                    if hasattr(stdin, 'name'):
+                        stdin_name = stdin.name
+                    else:
+                        stdin_name = "None"
+                    sys.stderr.write("Entering {cwd}\n".format(cwd=os.path.realpath(base_path)))
+                    sys.stderr.write("Trial {0}: calling subprocess with args: {1}, stdin: {2}, stdout: {3}\n".format(count+1, myargs, stdin_name, of.name))
+                trial['status'] = subprocess.call(myargs, stdin=stdin, stdout=of, stderr=ef, cwd=os.path.realpath(base_path))
                 #(stdout_data, stderr_data) = subprocess.communicate(myargs, stdin=stdin, cwd=base_path)
                 #trial['status'] = subprocess.wait()
                 signal.alarm(0)
             except OSError as e:
-                sys.stderr.write("{}: {}\n".format(args[0],e))
+                sys.stderr.write("{0}: {1}\n".format(args[0],e))
             except Alarm as e:
                 sys.stderr.write("Timed out\n")
                 ef.writelines("Timed out\n")
@@ -130,6 +149,7 @@ def run_tests(ref, **kwargs):
             trial['args'] = myargs
             trial['stdout'] = of_name
             trial['stderr'] = ef_name
+
     return t
 
 
