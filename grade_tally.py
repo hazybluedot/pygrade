@@ -9,6 +9,7 @@ import os
 import shlex
 import scholar
 import StringIO
+from find_commented import find_commented
 from maybe import maybe
 
 paren_points = re.compile(r'\(([+-][\d]+)\)')
@@ -68,6 +69,11 @@ if __name__ == "__main__":
       
       #for problem in homework['problems']:
       #path = scholar.feedback_attachments(pid)
+      commented_files = find_commented(path, '### *DKM')
+      if commented_files:
+         for commented_file in commented_files:
+            if not os.path.basename(commented_file) in [ problem['src'] for problem in homework['problems']]:
+               homework['problems'].append({'src': os.path.basename(commented_file)})
       results = [ collect_problem(path,problem,verbose=args.verbose) for problem in homework['problems'] ]
       
       comments_file = scholar.comments_file(pid)
