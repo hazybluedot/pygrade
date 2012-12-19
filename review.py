@@ -7,7 +7,20 @@ from utils import find_key
 import shlex
 import sys
 import os
+import subprocess
+import urllib
 
+def first_match(expression):
+    for srcfile in expression.split('|'):
+        file_path = os.path.join(project_path, srcfile)
+        try:
+            if os.path.isfile(file_path):
+                return file_path
+        except TypeError as e:
+            sys.stderr.write("{0}: stupid TypeError: {1}\n".format(file_path, e))
+            sys.exit(1)
+    return None
+ 
 if __name__ == '__main__':
     import argparse
     
@@ -27,13 +40,18 @@ if __name__ == '__main__':
     ec = EmacsClient(servername=args.session_name)
 
     for (pid, project_path) in imap(shlex.split, sys.stdin):
+        project_path = urllib.unquote(project_path)
         for review in reviewstruct:
+            subprocess.call(['tmux', 'send-keys', '-t', 'grading:0.1', "cd \"{path}\"".format(path=os.path.realpath(project_path)), 'C-m'])
+            subprocess.call(['tmux', 'send-keys', '-t', 'grading:0.1', "ls *", 'C-m'])
             if 'src' in review:
-                for srcfile in review['src'].split('|'):
-                    file_path = os.path.join(project_path, review['src'])
-                    if os.path.isfile(file_path):
-                        if args.verbose:
-                            sys.stderr.write("Opening {0} for review\n".format(file_path))
-                            ec.open_file(file_path)
-                        else:
-                            sys.stderr.write("{0}: file not found\n".format(file_path))
+                actual_files = [ first_match(src_file) for src_file in review['src'] if first_match(src_file) ]
+                for review_file in actual_files[:-1]:
+                    if args.verbose:
+                        sys.stderr.write("Opening {0} for review\n".format(review_file))
+                    if review_file:
+                        ec.open_file(review_file, nowait=True)
+                    else:
+                        sys.stderr.write("{0}: file not found\n".format(review['src']))
+                ec.open_file(actual_files[-1])
+                ec.kill_all()
