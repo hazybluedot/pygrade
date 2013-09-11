@@ -39,21 +39,35 @@ class CucumberReport:
     def features(self):
         return ( CucumberReport.Feature(obj) for obj in self.json_obj if obj["keyword"] == "Feature" )
 
+    def scenarios(self):
+        scenarios = 0
+        for f in self.features():
+            scenarios += len([s for s in f.scenarios()])
+        #return [ (s for s in f.scenarios() if s.passed() ) for f in self.features() ]
+        return scenarios
+
+    def passed_scenarios(self):
+        passed = 0
+        for f in self.features():
+            passed += len([s for s in f.scenarios() if s.passed()])
+        return passed
+        #return [ [ s for s in f.scenarios() if s.passed() ] for f in self.features()]
+
 if __name__ == '__main__':
-    from sys import stdin
+    from sys import stdin,stderr
 
     json_src = stdin   
     
     creport = CucumberReport(json.load(json_src))
     
-    for feature in creport.features():
-        print("Feature: {0}\n".format(feature.name))
-        num_scenarios = len([s for s in feature.scenarios()])
-        passed_scenarios = len([ scenario for scenario in feature.scenarios() if scenario.passed() ])
-        #for scenario in feature.scenarios():
-        #    print("\tScenario: {0} {1}\n".format(scenario.name, scenario.passed()))
-        #    steps = [ s for s in scenario.steps() ]
-        #    print("\t {0} steps\n".format(len(steps)))
-            
-        print("{0}/{1} scenarios ({2}%)\n".format(passed_scenarios, num_scenarios, passed_scenarios*100/num_scenarios))
+    passed_scenarios = creport.passed_scenarios()
+    total_scenarios = creport.scenarios()
+    print("{0}/{1} ({2}%)".format(passed_scenarios, total_scenarios, passed_scenarios*100/total_scenarios))
+    if passed_scenarios < total_scenarios:
+        for feature in creport.features():
+            print("Feature: {0}\n".format(feature.name))
+            num_scenarios = len([s for s in feature.scenarios()])
+            passed_scenarios = len([ scenario for scenario in feature.scenarios() if scenario.passed() ])
+            print("\t{0}/{1} scenarios ({2}%)\n".format(passed_scenarios, num_scenarios, passed_scenarios*100/num_scenarios))
 
+    
