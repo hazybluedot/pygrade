@@ -2,14 +2,25 @@
 
 import json
 
+def pass_string(passed):
+    if passed:
+        return "PASSED"
+    else:
+        return "FAILED"
+
 class CucumberReport:
     class Step:
         def __init__(self,step_obj):
             self.json_obj = step_obj
             self.name = self.json_obj["name"]
+            self.keyword = self.json_obj["keyword"]
+            self.desc = self.keyword + " " + self.name
 
         def passed(self):
             return self.json_obj["result"]["status"] == "passed"
+
+        def to_str(self):
+            return self.desc + " (" + pass_string(self.passed()) + ")"
 
     class Scenario:
         def __init__(self,scenario_obj):
@@ -54,7 +65,7 @@ class CucumberReport:
         #return [ [ s for s in f.scenarios() if s.passed() ] for f in self.features()]
 
 if __name__ == '__main__':
-    from sys import stdin,stderr
+    from sys import stdin,stderr,stdout
 
     json_src = stdin   
     
@@ -68,6 +79,10 @@ if __name__ == '__main__':
             print("Feature: {0}\n".format(feature.name))
             num_scenarios = len([s for s in feature.scenarios()])
             passed_scenarios = len([ scenario for scenario in feature.scenarios() if scenario.passed() ])
+            for scenario in feature.scenarios():
+                print("\t{0} ({1})".format(scenario.name, pass_string(scenario.passed())))
+                if not scenario.passed():
+                    stdout.writelines([ "\t\t" + s.to_str() + "\n" for s in scenario.steps() ])
             print("\t{0}/{1} scenarios ({2}%)\n".format(passed_scenarios, num_scenarios, passed_scenarios*100/num_scenarios))
 
     
