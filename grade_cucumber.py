@@ -99,9 +99,16 @@ def print_scenario(s, colors):
 if __name__ == '__main__':
     from sys import stdin,stderr,stdout
     from os import isatty
+    from optparse import OptionParser
+    
+    parser = OptionParser()
+    parser.add_option("-c", "--color", dest="colorize",
+                      help="set colorizing output", default="auto")
 
+    (options, args) = parser.parse_args()
     ttycolors = bcolors()
-    if not isatty(1):
+    
+    if ( not isatty(1) and options.colorize == "auto" ) or options.colorize == "false":
         ttycolors.disable()
 
     json_src = stdin   
@@ -110,7 +117,10 @@ if __name__ == '__main__':
     
     passed_scenarios = creport.passed_scenarios()
     total_scenarios = creport.scenarios()
-    print("{0}/{1} ({2}%)".format(passed_scenarios, total_scenarios, passed_scenarios*100/total_scenarios))
+    print("{color}{passed}/{total} ({percent:2.2f}%){colorend}".format(passed=passed_scenarios, 
+                                                   total=total_scenarios, 
+                                                   percent=passed_scenarios*100/total_scenarios,
+                                                   color=ttycolors.OKGREEN, colorend=ttycolors.ENDC))
     if passed_scenarios < total_scenarios:
         for feature in creport.features():
             print("Feature: {0}\n".format(feature.name))
@@ -120,6 +130,6 @@ if __name__ == '__main__':
                 print("\t{0} ({1})".format(scenario.name, pass_string(scenario.passed())))
                 if not scenario.passed():
                     stdout.writelines([ "\t\t" + line.strip() + "\n" for s in scenario.steps() for line in print_scenario(s, ttycolors)  ])                    
-            print("\t{0}/{1} scenarios ({2}%)\n".format(passed_scenarios, num_scenarios, passed_scenarios*100/num_scenarios))
+            print("\t{0}/{1} scenarios ({2:2.2f}%)\n".format(passed_scenarios, num_scenarios, passed_scenarios*100/num_scenarios))
 
     
