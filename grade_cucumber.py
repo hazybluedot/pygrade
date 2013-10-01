@@ -1,12 +1,29 @@
 #!/usr/bin/env python3
 
 import json
+from os import isatty
 
 def pass_string(passed):
     if passed:
         return "PASSED"
     else:
         return "FAILED"
+
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+
+    def disable(self):
+        self.HEADER = ''
+        self.OKBLUE = ''
+        self.OKGREEN = ''
+        self.WARNING = ''
+        self.FAIL = ''
+        self.ENDC = ''
 
 class CucumberReport:
     class Step:
@@ -19,9 +36,15 @@ class CucumberReport:
         def passed(self):
             return self.json_obj["result"]["status"] == "passed"
 
-        def to_str(self):
+        def get_message(self):
             return self.desc + " (" + pass_string(self.passed()) + ")"
-
+            
+        def get_error_message(self):
+            try:
+                return self.json_obj["result"]["error_message"]
+            except KeyError as e:
+                return ""
+            
     class Scenario:
         def __init__(self,scenario_obj):
             self.json_obj = scenario_obj
@@ -64,8 +87,22 @@ class CucumberReport:
         return passed
         #return [ [ s for s in f.scenarios() if s.passed() ] for f in self.features()]
 
+def print_scenario(s, colors):
+    lines = []
+    color = "" if s.passed() else colors.WARNING
+    lines.append(color + s.get_message() + colors.ENDC)
+    color = "" if s.passed() else colors.FAIL
+    if not s.get_error_message() == "":
+        lines.append(color + s.get_error_message() + colors.ENDC)
+    return lines
+
 if __name__ == '__main__':
     from sys import stdin,stderr,stdout
+    from os import isatty
+
+    ttycolors = bcolors
+    if not isatty(1):
+        bcolors.disable()
 
     json_src = stdin   
     
@@ -82,7 +119,7 @@ if __name__ == '__main__':
             for scenario in feature.scenarios():
                 print("\t{0} ({1})".format(scenario.name, pass_string(scenario.passed())))
                 if not scenario.passed():
-                    stdout.writelines([ "\t\t" + s.to_str() + "\n" for s in scenario.steps() ])
+                    stdout.writelines([ "\t\t" + line.strip() + "\n" for s in scenario.steps() for line in print_scenario(s, ttycolors)  ])                    
             print("\t{0}/{1} scenarios ({2}%)\n".format(passed_scenarios, num_scenarios, passed_scenarios*100/num_scenarios))
 
     
