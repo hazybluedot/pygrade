@@ -102,7 +102,7 @@ if __name__ == '__main__':
 
     ttycolors = bcolors
     if not isatty(1):
-        bcolors.disable()
+        ttycolors.disable()
 
     json_src = stdin   
     
