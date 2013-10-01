@@ -100,7 +100,7 @@ if __name__ == '__main__':
     from sys import stdin,stderr,stdout
     from os import isatty
 
-    ttycolors = bcolors
+    ttycolors = bcolors()
     if not isatty(1):
         ttycolors.disable()
 
