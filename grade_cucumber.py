@@ -104,6 +104,7 @@ if __name__ == '__main__':
     parser = OptionParser()
     parser.add_option("-c", "--color", dest="colorize",
                       help="set colorizing output", default="auto")
+    parser.add_option("-c", "--summary", help="Just print summary", default=False)
 
     (options, args) = parser.parse_args()
     ttycolors = bcolors()
@@ -121,7 +122,7 @@ if __name__ == '__main__':
                                                    total=total_scenarios, 
                                                    percent=passed_scenarios*100/total_scenarios,
                                                    color=ttycolors.OKGREEN, colorend=ttycolors.ENDC))
-    if passed_scenarios < total_scenarios:
+    if not options.summary and passed_scenarios < total_scenarios:
         for feature in creport.features():
             print("Feature: {0}\n".format(feature.name))
             num_scenarios = len([s for s in feature.scenarios()])
