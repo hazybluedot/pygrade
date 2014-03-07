@@ -7,6 +7,12 @@ from errors import *
 
 default_args={ 'idfield': 'Student Id', 'headerlines': 0, 'gradefield': 'iotest part 1' }
 
+letter_grade = { 'A': 100,
+                  'A-': 95,
+                  'B+': 90,
+                  'B': 85,
+                  'B-': 80
+                  }
 def open_grades(name, mode, margs=default_args):
    mmargs=default_args
    if 'name' in margs:
@@ -40,7 +46,8 @@ def open_grades(name, mode, margs=default_args):
                raise GradeError("Grade must be positive")
 
          except ValueError as e:
-            raise GradeError("Grade must be a number")
+            grade = letter_grade[grade]
+            #raise GradeError("Grade must be a number")
          try:
             record = [ record for record in self.entries if record[self.idfield] == pid ][0]
             record[self.gradefield] = grade

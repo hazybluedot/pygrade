@@ -104,7 +104,7 @@ if __name__ == '__main__':
     parser = OptionParser()
     parser.add_option("-c", "--color", dest="colorize",
                       help="set colorizing output", default="auto")
-    parser.add_option("-s", "--summary", help="Just print summary", default=False)
+    parser.add_option("-s", "--summary", action="store_true", help="Just print summary", default=False)
 
     (options, args) = parser.parse_args()
     ttycolors = bcolors()
